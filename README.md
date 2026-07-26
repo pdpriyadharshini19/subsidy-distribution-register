@@ -88,7 +88,7 @@ Sample record for farmer `F005` (Selvi Rajan), input type `Paddy Seed`, entitlem
 ## Demonstration
 
 - Screenshots: see `/screenshots` in this repository (New Entry screen, Distribution List with a search applied, and a rejected duplicate-entitlement attempt).
-- Video walkthrough: `<add your video link here>` — a short recording showing the full flow: adding a record, searching/filtering the list, and a blocked duplicate attempt.
+- Video walkthrough: `<https://drive.google.com/file/d/1n8bH70okbfiVIDuB5v3rydAOHZrt-RH3/view?usp=sharing>` — a short recording showing the full flow: adding a record, searching/filtering the list, and a blocked duplicate attempt.
 
 ## Project Structure
 
