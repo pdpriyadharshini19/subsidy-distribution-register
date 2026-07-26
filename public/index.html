@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Subsidy Distribution Register</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-mark">register no.</span>
+        <h1>Agricultural Input Subsidy<br/>Distribution Register</h1>
+      </div>
+      <nav class="tabs" id="tabs">
+        <button class="tab active" data-view="register">New Entry</button>
+        <button class="tab" data-view="list">Distribution List</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+
+    <!-- ============ NEW ENTRY VIEW ============ -->
+    <section id="view-register" class="view active">
+      <div class="card form-card">
+        <h2>Record a Distribution</h2>
+        <p class="hint">Every field is checked on the server before anything is saved. If this farmer has already fully collected this input, the system will stop you here.</p>
+
+        <form id="entry-form" novalidate>
+          <div class="grid">
+            <label>Farmer ID
+              <input type="text" name="farmer_id" placeholder="e.g. F041" required />
+            </label>
+            <label>Farmer Name
+              <input type="text" name="farmer_name" placeholder="Full name" required />
+            </label>
+            <label>Village
+              <input type="text" name="village" placeholder="Village name" required />
+            </label>
+            <label>Input Type
+              <select name="input_type" required>
+                <option value="" disabled selected>Select input</option>
+                <option>Paddy Seed</option>
+                <option>Urea Fertiliser</option>
+                <option>DAP Fertiliser</option>
+              </select>
+            </label>
+            <label>Entitlement Qty (kg)
+              <input type="number" name="entitlement_qty" min="0.01" step="0.01" placeholder="e.g. 25" required />
+            </label>
+            <label>Issued Qty (kg)
+              <input type="number" name="issued_qty" min="0.01" step="0.01" placeholder="e.g. 25" required />
+            </label>
+            <label>Issue Date
+              <input type="date" name="issue_date" required />
+            </label>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" id="submit-btn">Save Distribution</button>
+            <span id="form-status" class="form-status" aria-live="polite"></span>
+          </div>
+        </form>
+
+        <div id="result-panel" class="result-panel hidden"></div>
+      </div>
+    </section>
+
+    <!-- ============ LIST VIEW ============ -->
+    <section id="view-list" class="view">
+      <div class="card">
+        <div class="list-toolbar">
+          <input type="search" id="search-input" placeholder="Search by farmer ID or name…" />
+          <select id="village-filter"><option value="">All villages</option></select>
+          <select id="input-filter"><option value="">All input types</option></select>
+          <span id="result-count" class="result-count"></span>
+        </div>
+
+        <div id="list-body">
+          <div class="state-msg" id="list-loading">Loading register…</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="foot">
+    SIH 2026 · Practical Assessment · Agricultural Input Subsidy Distribution Register
+  </footer>
+
+<script src="app.js"></script>
+</body>
+</html>

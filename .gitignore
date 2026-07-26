@@ -1,0 +1,4 @@
+node_modules/
+data/subsidy.db
+*.log
+.DS_Store
