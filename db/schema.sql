@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS distributions (
   record_id        INTEGER PRIMARY KEY AUTOINCREMENT,
   farmer_id        TEXT NOT NULL,
   farmer_name      TEXT,
+  phone_number     TEXT,
   village          TEXT,
   input_type       TEXT NOT NULL,
   entitlement_qty  REAL,

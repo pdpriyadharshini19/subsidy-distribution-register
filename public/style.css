@@ -89,6 +89,7 @@ body {
   margin-top: 18px;
 }
 label { display: flex; flex-direction: column; font-size: 13px; font-weight: 600; color: #444234; gap: 6px; }
+.optional { font-weight: 400; color: #9A968A; text-transform: none; font-size: 12px; }
 input, select {
   font-family: var(--sans);
   font-size: 14px;

@@ -143,6 +143,7 @@ function renderTable(records) {
         <tr>
           <td data-label="ID">${r.record_id}</td>
           <td data-label="Farmer">${escapeHtml(r.farmer_name) || missing()}<br/><span class="missing-val">${escapeHtml(r.farmer_id)}</span></td>
+          <td data-label="Phone">${r.phone_number ? escapeHtml(r.phone_number) : missing()}</td>
           <td data-label="Village">${r.village ? escapeHtml(r.village) : missing()}</td>
           <td data-label="Input">${escapeHtml(r.input_type)}</td>
           <td data-label="Entitlement">${numOrMissing(r.entitlement_qty)}</td>
@@ -157,7 +158,7 @@ function renderTable(records) {
     <table>
       <thead>
         <tr>
-          <th>ID</th><th>Farmer</th><th>Village</th><th>Input</th>
+          <th>ID</th><th>Farmer</th><th>Phone</th><th>Village</th><th>Input</th>
           <th>Entitlement</th><th>Issued</th><th>Date</th><th>Balance</th>
         </tr>
       </thead>

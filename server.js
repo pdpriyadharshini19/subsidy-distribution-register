@@ -27,8 +27,6 @@ app.use(express.static(path.join(__dirname, "public")));
 const VALID_INPUT_TYPES = ["Paddy Seed", "Urea Fertiliser", "DAP Fertiliser"];
 
 // ---------- GET /api/meta ----------
-// Distinct villages and input types, used to populate the filter dropdowns
-// on the listing screen.
 app.get("/api/meta", (req, res) => {
   const villages = db
     .prepare(
@@ -46,10 +44,6 @@ app.get("/api/meta", (req, res) => {
 });
 
 // ---------- GET /api/records ----------
-// Listing + search + filter. Ordered so records that most need the officer's
-// attention come first: rows with a missing/unusable balance first (they
-// cannot be trusted without a manual look), then rows with the least
-// remaining balance (closest to being fully drawn), then most recent first.
 app.get("/api/records", (req, res) => {
   const { search = "", village = "", input_type = "" } = req.query;
 
@@ -92,14 +86,86 @@ app.get("/api/records/:id", (req, res) => {
 });
 
 // ---------- POST /api/records ----------
-// Records one new distribution issue. Every field is validated here, the
-// entitlement check happens here, and the balance is calculated here.
+// On-Spot Change 2: the check ("how much remains?") and the write ("save the
+// issue") are wrapped in one atomic SQLite transaction, using an IMMEDIATE
+// lock. BEGIN IMMEDIATE takes the write lock the moment the transaction
+// starts, instead of only when the INSERT itself runs, so a second
+// transaction trying to run at the same time cannot read a stale "remaining"
+// value while the first is still mid-way through deciding whether to save.
+// SQLite queues the second transaction until the first commits or rolls
+// back, so exactly one of two simultaneous requests for the same farmer +
+// input type can succeed; the other sees the balance *after* the first one
+// committed and is correctly refused.
+const saveDistribution = db.transaction((fields) => {
+  const { farmer_id, farmer_name, phone_number, village, input_type, entitlement_qty, issued_qty, issue_date } = fields;
+
+  const priorRows = db
+    .prepare(
+      "SELECT issued_qty, entitlement_qty FROM distributions WHERE farmer_id = ? AND input_type = ?"
+    )
+    .all(farmer_id, input_type);
+
+  const alreadyIssued = priorRows.reduce((sum, r) => sum + (r.issued_qty || 0), 0);
+
+  const effectiveEntitlement =
+    priorRows.length > 0 ? priorRows[0].entitlement_qty : entitlement_qty;
+
+  const remainingBefore = effectiveEntitlement - alreadyIssued;
+
+  if (priorRows.length > 0 && remainingBefore <= 0) {
+    return {
+      conflict: true,
+      status: 409,
+      error: "This entitlement has already been fully drawn.",
+      details: [
+        `${farmer_name || farmer_id} has already collected ${alreadyIssued} of ${effectiveEntitlement} for ${input_type}.`,
+      ],
+    };
+  }
+
+  if (issued_qty > remainingBefore) {
+    return {
+      conflict: true,
+      status: 409,
+      error: "Issued quantity exceeds the remaining entitlement.",
+      details: [`Only ${remainingBefore} remains for ${input_type} against this entitlement.`],
+    };
+  }
+
+  const balance = Math.round((remainingBefore - issued_qty) * 100) / 100;
+
+  const result = db
+    .prepare(
+      `INSERT INTO distributions
+        (farmer_id, farmer_name, phone_number, village, input_type, entitlement_qty, issued_qty, issue_date, balance)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      farmer_id,
+      farmer_name,
+      phone_number || null,
+      village,
+      input_type,
+      effectiveEntitlement,
+      issued_qty,
+      issue_date,
+      balance
+    );
+
+  const record = db
+    .prepare("SELECT * FROM distributions WHERE record_id = ?")
+    .get(result.lastInsertRowid);
+
+  return { conflict: false, record };
+}, { immediate: true });
+
 app.post("/api/records", (req, res) => {
   const body = req.body || {};
   const errors = [];
 
   const farmer_id = String(body.farmer_id || "").trim();
   const farmer_name = String(body.farmer_name || "").trim();
+  const phone_number = String(body.phone_number || "").trim();
   const village = String(body.village || "").trim();
   const input_type = String(body.input_type || "").trim();
   const issue_date = String(body.issue_date || "").trim();
@@ -119,67 +185,37 @@ app.post("/api/records", (req, res) => {
     errors.push("Entitlement quantity must be a number greater than 0.");
   if (!Number.isFinite(issued_qty) || issued_qty <= 0)
     errors.push("Issued quantity must be a number greater than 0.");
+  if (phone_number && !/^\d{10}$/.test(phone_number))
+    errors.push("Phone number must be exactly 10 digits, if provided.");
 
   if (errors.length) {
     return res.status(400).json({ error: "Validation failed.", details: errors });
   }
 
-  // How much has already been issued to this farmer for this input type?
-  const priorRows = db
-    .prepare(
-      "SELECT issued_qty, entitlement_qty, issue_date FROM distributions WHERE farmer_id = ? AND input_type = ?"
-    )
-    .all(farmer_id, input_type);
-
-  const alreadyIssued = priorRows.reduce((sum, r) => sum + (r.issued_qty || 0), 0);
-
-  // Use the entitlement already on file for this farmer + input type, if one
-  // exists, so a later submission cannot quietly change the entitlement.
-  const effectiveEntitlement =
-    priorRows.length > 0 ? priorRows[0].entitlement_qty : entitlement_qty;
-
-  const remainingBefore = effectiveEntitlement - alreadyIssued;
-
-  if (priorRows.length > 0 && remainingBefore <= 0) {
-    return res.status(409).json({
-      error: "This entitlement has already been fully drawn.",
-      details: [
-        `${farmer_name || farmer_id} has already collected ${alreadyIssued} of ${effectiveEntitlement} for ${input_type}.`,
-      ],
-    });
-  }
-
-  if (issued_qty > remainingBefore) {
-    return res.status(409).json({
-      error: "Issued quantity exceeds the remaining entitlement.",
-      details: [`Only ${remainingBefore} remains for ${input_type} against this entitlement.`],
-    });
-  }
-
-  const balance = Math.round((remainingBefore - issued_qty) * 100) / 100;
-
-  const result = db
-    .prepare(
-      `INSERT INTO distributions
-        (farmer_id, farmer_name, village, input_type, entitlement_qty, issued_qty, issue_date, balance)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
+  let outcome;
+  try {
+    outcome = saveDistribution({
       farmer_id,
       farmer_name,
+      phone_number,
       village,
       input_type,
-      effectiveEntitlement,
+      entitlement_qty,
       issued_qty,
       issue_date,
-      balance
-    );
+    });
+  } catch (err) {
+    return res.status(409).json({
+      error: "Could not save right now — another request for this record was in progress. Please try again.",
+      details: [],
+    });
+  }
 
-  const record = db
-    .prepare("SELECT * FROM distributions WHERE record_id = ?")
-    .get(result.lastInsertRowid);
+  if (outcome.conflict) {
+    return res.status(outcome.status).json({ error: outcome.error, details: outcome.details });
+  }
 
-  res.status(201).json({ record });
+  res.status(201).json({ record: outcome.record });
 });
 
 const PORT = process.env.PORT || 3000;
